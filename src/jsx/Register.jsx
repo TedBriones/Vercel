@@ -53,177 +53,166 @@ const Register = ({ setCurrentPage }) => {
 
   };
 
-  // =====================================================
-  // HANDLE REGISTER
-  // =====================================================
+// Set this to your live Node.js backend URL (or local Node backend during development)
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
-  const handleRegister = async (e) => {
+const handleRegister = async (e) => {
 
-    e.preventDefault();
+  e.preventDefault();
+
+  // =================================================
+  // VALIDATE PASSWORD
+  // =================================================
+
+  if (formData.password !== formData.confirmPassword) {
+
+    alert("Passwords do not match.");
+    return;
+
+  }
+
+  if (formData.password.length < 6) {
+
+    alert("Password must be at least 6 characters.");
+    return;
+
+  }
+
+  setLoading(true);
+
+  try {
+
+    console.log("=================================");
+    console.log("REGISTERING NEW RESIDENT");
+    console.log("=================================");
+
+    console.log(
+      "Name:",
+      formData.firstName,
+      formData.middleName,
+      formData.lastName
+    );
+
+    console.log(
+      "Email:",
+      formData.email
+    );
 
     // =================================================
-    // VALIDATE PASSWORD
+    // SEND REGISTRATION REQUEST TO NODE.JS BACKEND
     // =================================================
 
-    if (formData.password !== formData.confirmPassword) {
+    const response = await fetch(
+      `${API_URL}/api/register`,
+      {
+        method: "POST",
 
-      alert("Passwords do not match.");
-      return;
+        headers: {
+          "Content-Type": "application/json"
+        },
 
-    }
+        body: JSON.stringify({
 
-    if (formData.password.length < 6) {
+          first_name: formData.firstName,
+          middle_name: formData.middleName,
+          last_name: formData.lastName,
+          email: formData.email,
+          password: formData.password
 
-      alert("Password must be at least 6 characters.");
-      return;
-
-    }
-
-    setLoading(true);
-
-    try {
-
-      console.log("=================================");
-      console.log("REGISTERING NEW RESIDENT");
-      console.log("=================================");
-
-      console.log(
-        "Name:",
-        formData.firstName,
-        formData.middleName,
-        formData.lastName
-      );
-
-      console.log(
-        "Email:",
-        formData.email
-      );
-
-      // =================================================
-      // SEND REGISTRATION REQUEST
-      // =================================================
-
-      const response = await fetch(
-        "http://localhost/barangay-api/register.php",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json"
-          },
-
-          body: JSON.stringify({
-
-            firstName: formData.firstName,
-            middleName: formData.middleName,
-            lastName: formData.lastName,
-            email: formData.email,
-            password: formData.password
-
-          })
-        }
-      );
-
-      console.log(
-        "Registration HTTP status:",
-        response.status
-      );
-
-      // =================================================
-      // GET RESPONSE
-      // =================================================
-
-      const data = await response.json();
-
-      console.log(
-        "Registration response:",
-        data
-      );
-
-      // =================================================
-      // SUCCESS
-      // =================================================
-
-      if (data.success) {
-
-        console.log(
-          "NEW RESIDENT CREATED"
-        );
-
-        console.log(
-          "NEW RESIDENT ID:",
-          data.resident_id
-        );
-
-        /*
-         * IMPORTANT:
-         *
-         * DO NOT save residentId here.
-         *
-         * Login is responsible for creating
-         * the active resident session.
-         */
-
-        // Make absolutely sure no previous
-        // resident session remains.
-
-        localStorage.removeItem("residentId");
-        localStorage.removeItem("userEmail");
-        localStorage.removeItem("userRole");
-        localStorage.removeItem("loggedIn");
-        localStorage.removeItem("isLoggedIn");
-
-        alert(
-          "Registration successful! You can now login."
-        );
-
-        // =================================================
-        // CLEAR FORM
-        // =================================================
-
-        setFormData({
-          firstName: "",
-          middleName: "",
-          lastName: "",
-          email: "",
-          password: "",
-          confirmPassword: ""
-        });
-
-        // =================================================
-        // GO TO LOGIN
-        // =================================================
-
-        setCurrentPage("login");
-
-      } else {
-
-        alert(
-          data.message ||
-          "Registration failed."
-        );
-
+        })
       }
+    );
 
-    } catch (error) {
+    console.log(
+      "Registration HTTP status:",
+      response.status
+    );
 
-      console.error(
-        "Registration error:",
-        error
+    // =================================================
+    // GET RESPONSE
+    // =================================================
+
+    const data = await response.json();
+
+    console.log(
+      "Registration response:",
+      data
+    );
+
+    // =================================================
+    // SUCCESS
+    // =================================================
+
+    if (data.success) {
+
+      console.log(
+        "NEW RESIDENT CREATED"
       );
+
+      console.log(
+        "NEW USER ID:",
+        data.user_id
+      );
+
+      // Make absolutely sure no previous
+      // resident session remains.
+
+      localStorage.removeItem("residentId");
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("loggedIn");
+      localStorage.removeItem("isLoggedIn");
 
       alert(
-        "Unable to connect to the server. Please make sure XAMPP Apache and MySQL are running."
+        "Registration successful! You can now login."
       );
 
-    } finally {
+      // =================================================
+      // CLEAR FORM
+      // =================================================
 
-      setLoading(false);
+      setFormData({
+        firstName: "",
+        middleName: "",
+        lastName: "",
+        email: "",
+        password: "",
+        confirmPassword: ""
+      });
+
+      // =================================================
+      // GO TO LOGIN
+      // =================================================
+
+      setCurrentPage("login");
+
+    } else {
+
+      alert(
+        data.message ||
+        "Registration failed."
+      );
 
     }
 
-  };
+  } catch (error) {
 
+    console.error(
+      "Registration error:",
+      error
+    );
+
+    alert(
+      "Unable to connect to the server. Please verify your backend server is running and accessible."
+    );
+
+  } finally {
+
+    setLoading(false);
+
+  }
+
+};
   // =====================================================
   // BACK TO LOGIN
   // =====================================================
