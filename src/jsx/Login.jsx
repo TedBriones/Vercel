@@ -5,11 +5,12 @@ const Login = ({ setCurrentPage }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // Holds the logged-in user's data so we can display it after login
+  // Only non-sensitive info for display after login
   const [loggedInUser, setLoggedInUser] = useState(null);
 
-  // Set this to your live Node.js backend URL (or local Node backend during development)
+  // Set REACT_APP_API_URL in your Vercel environment variables.
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   // ==========================================
@@ -17,183 +18,108 @@ const Login = ({ setCurrentPage }) => {
   // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
-
-    if (loading) {
-      return;
-    }
+    if (loading) return;
 
     const loginEmail = email.trim();
 
     if (!loginEmail || !password) {
-      alert("Please enter your email and password.");
+      setError("Please enter your email and password.");
       return;
     }
 
+    setError("");
     setLoading(true);
 
     try {
-      console.log("=================================");
-      console.log("LOGIN STARTED");
-      console.log("Email:", loginEmail);
-      console.log("=================================");
-
-      // ==========================================
-      // SEND LOGIN REQUEST TO NODE.JS / MONGODB BACKEND
-      // ==========================================
       const response = await fetch(`${API_URL}/api/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          email: loginEmail,
-          password: password
-        })
+        headers: { "Content-Type": "application/json" },
+        // Lets the browser accept/send the httpOnly session cookie
+        credentials: "include",
+        body: JSON.stringify({ email: loginEmail, password })
       });
 
-      console.log("LOGIN HTTP STATUS:", response.status);
+      const data = await response.json().catch(() => ({}));
 
-      const data = await response.json();
-      console.log("LOGIN API DATA:", data);
-
-      // ==========================================
-      // LOGIN FAILED
-      // ==========================================
       if (!response.ok || !data.success) {
-        console.error("LOGIN FAILED:", data.message);
-        alert(data.message || "Invalid email or password.");
+        setError(data.message || "Invalid email or password.");
         return;
       }
 
-      // ==========================================
-      // CHECK USER OBJECT
-      // ==========================================
       if (!data.user) {
-        console.error("Login succeeded but user object is missing:", data);
-        alert("Login error: User information was not returned.");
+        setError("Login error: user information was not returned.");
         return;
       }
 
-      // ==========================================
-      // GET USER ID (Supports both _id and id)
-      // ==========================================
-      const userId = data.user._id || data.user.id || data.user_id;
+      const user = data.user;
+      const userId = user._id || user.id || data.user_id;
 
       if (!userId) {
-        console.error("LOGIN ERROR: User ID missing.", data);
-        alert("Login error: User ID was not returned by the server.");
+        setError("Login error: user ID was not returned by the server.");
         return;
       }
 
-      // ==========================================
-      // USER INFORMATION (Supports both snake_case and camelCase)
-      // ==========================================
-      const userEmail = data.user.email || loginEmail;
+      const firstName = user.first_name || user.firstName || "";
+      const middleName = user.middle_name || user.middleName || "";
+      const lastName = user.last_name || user.lastName || "";
+      const userName =
+        [firstName, middleName, lastName].filter(Boolean).join(" ") || "User";
 
-      const firstName = data.user.first_name || data.user.firstName || "";
-      const middleName = data.user.middle_name || data.user.middleName || "";
-      const lastName = data.user.last_name || data.user.lastName || "";
+      // Clear anything left over from the old insecure flow
+      [
+        "residentId",
+        "userId",
+        "residentName",
+        "userName",
+        "userEmail",
+        "userRole",
+        "loggedIn",
+        "isLoggedIn"
+      ].forEach((key) => localStorage.removeItem(key));
 
-      const userName = [firstName, middleName, lastName].filter(Boolean).join(" ");
-      const userRole = data.user.role || "resident";
-
-      // ==========================================
-      // CLEAR OLD SESSION FIRST
-      // ==========================================
-      localStorage.removeItem("residentId");
-      localStorage.removeItem("userId");
-      localStorage.removeItem("residentName");
-      localStorage.removeItem("userName");
-      localStorage.removeItem("userEmail");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("loggedIn");
-      localStorage.removeItem("isLoggedIn");
-
-      // ==========================================
-      // SAVE NEW SESSION
-      // ==========================================
+      // Display-only data. NOT used for authorization: the server
+      // decides access from the session cookie on every request.
+      // (Role is intentionally not stored here.)
       localStorage.setItem("userId", String(userId));
       localStorage.setItem("residentId", String(userId));
-      localStorage.setItem("userName", userName || "User");
-      localStorage.setItem("residentName", userName || "User");
-      localStorage.setItem("userEmail", userEmail);
-      localStorage.setItem("userRole", userRole);
-      localStorage.setItem("loggedIn", "true");
-      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userName", userName);
+      localStorage.setItem("residentName", userName);
 
-      // ==========================================
-      // VERIFY LOCAL STORAGE
-      // ==========================================
-      console.log("=================================");
-      console.log("LOGIN SUCCESSFUL");
-      console.log("User ID:", localStorage.getItem("userId"));
-      console.log("User Name:", localStorage.getItem("userName"));
-      console.log("User Email:", localStorage.getItem("userEmail"));
-      console.log("User Role:", localStorage.getItem("userRole"));
-      console.log("Logged In:", localStorage.getItem("loggedIn"));
-      console.log("=================================");
-
-      // ==========================================
-      // SAVE LOGGED-IN USER DATA TO STATE
-      // (so we can display it on screen)
-      // ==========================================
       setLoggedInUser({
         id: userId,
-        name: userName || "User",
-        email: userEmail,
-        role: userRole
+        name: userName,
+        email: user.email || loginEmail,
+        role: user.role || "resident"
       });
 
-      // ==========================================
-      // CLEAR FORM
-      // ==========================================
       setEmail("");
       setPassword("");
-    } catch (error) {
-      console.error("LOGIN ERROR:", error);
-      alert(
-        error.message ||
-          "Unable to connect to the server. Please verify your backend server is running and accessible."
+    } catch (err) {
+      setError(
+        "Unable to connect to the server. Please try again in a moment."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // ==========================================
-  // ADMIN LOGIN
-  // ==========================================
-  const handleAdminLogin = () => {
-    setCurrentPage("admin-login");
-  };
-
-  // ==========================================
-  // CONTINUE TO DASHBOARD
-  // ==========================================
-  const handleContinue = () => {
-    console.log("Navigating to dashboard...");
-    setCurrentPage("dashboard");
-  };
+  const handleAdminLogin = () => setCurrentPage("admin-login");
+  const handleContinue = () => setCurrentPage("dashboard");
 
   // ==========================================
   // UI
   // ==========================================
-
-  // If login succeeded, show the logged-in user's data instead of the form
   if (loggedInUser) {
     return (
       <div className="login-page">
         <div className="login-card">
-          {/* LOGO */}
           <div className="login-logo-wrapper">
             <img src="/logo.jpg" alt="Barangay Logo" className="login-logo" />
           </div>
 
-          {/* TITLE */}
           <h1>Barangay Portal</h1>
           <p className="login-subtitle">Login Successful</p>
 
-          {/* LOGGED-IN USER DATA */}
           <div className="user-info-card">
             <p>
               <strong>Name:</strong> {loggedInUser.name}
@@ -204,12 +130,8 @@ const Login = ({ setCurrentPage }) => {
             <p>
               <strong>Role:</strong> {loggedInUser.role}
             </p>
-            <p>
-              <strong>User ID:</strong> {loggedInUser.id}
-            </p>
           </div>
 
-          {/* CONTINUE BUTTON */}
           <button
             type="button"
             className="login-button"
@@ -225,23 +147,21 @@ const Login = ({ setCurrentPage }) => {
   return (
     <div className="login-page">
       <div className="login-card">
-        {/* LOGO */}
         <div className="login-logo-wrapper">
           <img src="/logo.jpg" alt="Barangay Logo" className="login-logo" />
         </div>
 
-        {/* TITLE */}
         <h1>Barangay Portal</h1>
         <p className="login-subtitle">Resident Login</p>
 
-        {/* LOGIN FORM */}
         <form onSubmit={handleLogin}>
-          {/* EMAIL */}
           <div className="form-group">
-            <label>Email</label>
+            <label htmlFor="email">Email</label>
             <input
+              id="email"
               type="email"
               placeholder="Enter your email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -249,12 +169,13 @@ const Login = ({ setCurrentPage }) => {
             />
           </div>
 
-          {/* PASSWORD */}
           <div className="form-group">
-            <label>Password</label>
+            <label htmlFor="password">Password</label>
             <input
+              id="password"
               type="password"
               placeholder="Enter your password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -262,13 +183,17 @@ const Login = ({ setCurrentPage }) => {
             />
           </div>
 
-          {/* LOGIN BUTTON */}
+          {error && (
+            <p role="alert" style={{ color: "#e5484d", margin: "8px 0" }}>
+              {error}
+            </p>
+          )}
+
           <button type="submit" className="login-button" disabled={loading}>
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
-        {/* REGISTER */}
         <button
           type="button"
           className="register-button"
@@ -278,7 +203,6 @@ const Login = ({ setCurrentPage }) => {
           Register
         </button>
 
-        {/* ADMIN / STAFF */}
         <button
           type="button"
           className="staff-login-link"
@@ -288,7 +212,6 @@ const Login = ({ setCurrentPage }) => {
           🔐 Admin & Staff Login
         </button>
 
-        {/* FOOTER */}
         <p className="login-footer">Resident access portal</p>
       </div>
     </div>
