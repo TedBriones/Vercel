@@ -319,12 +319,29 @@ const Profile = ({ setCurrentPage }) => {
         })
       });
 
-      const data = await response.json();
+      console.log("UPDATE PROFILE HTTP status:", response.status);
+
+      const responseText = await response.text();
+      console.log("UPDATE PROFILE raw response:", responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonError) {
+        showPopup(
+          `Server replied with status ${response.status} but not valid JSON. The PUT /api/profile route may be missing.`,
+          "error"
+        );
+        return;
+      }
 
       console.log("UPDATE PROFILE API:", data);
 
       if (!response.ok || !data.success) {
-        showPopup(data.message || "Failed to update profile.", "error");
+        showPopup(
+          data.message || `Failed to update profile (status ${response.status}).`,
+          "error"
+        );
         return;
       }
 
@@ -333,8 +350,11 @@ const Profile = ({ setCurrentPage }) => {
       showPopup("Profile updated successfully!", "success");
       setShowEditModal(false);
     } catch (error) {
-      console.error("PROFILE UPDATE ERROR:", error);
-      showPopup("Cannot connect to the server. Please try again.", "error");
+      console.error("PROFILE UPDATE ERROR:", error, "URL:", PROFILE_API);
+      showPopup(
+        "Request blocked or server unreachable (check CORS allows PUT, and the API URL).",
+        "error"
+      );
     }
   };
 
